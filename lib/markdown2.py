@@ -743,6 +743,8 @@ class Markdown(object):
             text = self._prepare_pyshell_blocks(text)
         if "wiki-tables" in self.extras:
             text = self._do_wiki_tables(text)
+        if "db-tables" in self.extras:
+			text = self._do_db_tables(text)
 
         text = self._do_code_blocks(text)
 
@@ -816,6 +818,58 @@ class Markdown(object):
             (^\1\|\|.+?\|\|\n)*        # any number of subsequent lines
             ''' % less_than_tab, re.M | re.X)
         return wiki_table_re.sub(self._wiki_table_sub, text)
+		
+    def _db_table_sub(self, match):
+        text = match.group(0).strip()
+        #print 'db table: %r' % match.group(0)
+        table = []
+        for line in text.splitlines():
+        	line = line.strip()
+        	if re.match(r'^[-+:]$',line): #discard the heading separator
+        		continue
+        	table.append(re.split(r'(?<!\\)\|', line))
+        #print table
+        result = ['<table>', '<tbody>']
+        for row in table:
+            result.append('<tr>')
+            emptyrow = True
+            for cell in row:
+                #TODO: determine alignment from whitespace
+                cell = cell.strip()
+                if len(cell) < 1 or re.match(r'[-+]', cell):
+                    continue
+                result.append('<td>')
+                result.append(self._run_span_gamut(cell))
+                result.append('</td>')
+                emptyrow = False
+            if emptyrow:
+                result.pop()
+            else:
+                result.append('</tr>')
+        result += ['</tbody>', '</table>']
+        return '\n'.join(result) + '\n'
+		
+    def _do_db_tables(self, text):
+        """ attempt at implementing David Wheeler's
+        suggestion at a syntax for Markdown Tables.
+        See http://justatheory.com/computers/markup/markdown-table-rfc.html"""
+        #Perform trivial optimization like wiki tables
+        if '|' not in text:
+        	return text
+        less_than_tab = self.tab_width - 1
+        db_table_re = re.compile(r'''
+        	(?:(?<=\n\n)|\A\n?)			# blank line before table
+        	^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n #first line
+        	#(^[-+:]*\n){0,1} #optional separating line
+        	(^([ ]{0,4})(\|([^|\n]\|)*)[ ]*\n)* # matches the rest of the lines in the table
+        	''' , re.M | re.X)
+        db_table_re = re.compile(r'''
+            (?:(?<=\n\n)|\A\n?)
+            ^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n
+            (^[-+:]*\n){0,1}
+            (^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n)*
+            ''', re.M | re.X)
+        return db_table_re.sub(self._db_table_sub, text)
 
     def _run_span_gamut(self, text):
         # These are all the transformations that occur *within* block-level
