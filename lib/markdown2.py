@@ -823,19 +823,21 @@ class Markdown(object):
         text = match.group(0).strip()
         #print 'db table: %r' % match.group(0)
         table = []
-        header = True
-        first = True
+        header = 1
+        line_num = 0
         for line in text.splitlines():
             line = line.strip()
-            if re.match(r'^[-+\|]$',line):
-                if first:
-                    header = False
+            #print header, line_num, line, "<br/>"
+            if header == 1 and re.match(r'^[-+\|]*$',line):
+                #print "end of header<br/>"
+                header = line_num
                 continue
             table.append(re.split(r'(?<!\\)\|(?!\|)', line)[1:-1])
-            first = False
+            line_num += 1
         result = ['<table border=1 rules="all">', '<tbody>']
         space_re = re.compile(r'^([ ]*).*?([ ]*)$')
         #print table
+        line_num = 0
         for row in table:
             result.append('<tr>')
             emptyrow = True
@@ -861,7 +863,7 @@ class Markdown(object):
                     colspan = ''
                 tag = '<td '
                 endtag = '</td>'
-                if header:
+                if header > line_num:
                     tag = '<th '
                     endtag = '</th>'
                 result.append(tag+colspan+'style="text-align:'+align+'">')
@@ -871,8 +873,7 @@ class Markdown(object):
                 result.pop()
             else:
                 result.append('</tr>')
-            if header:
-                header = False
+            line_num += 1
         result += ['</tbody>', '</table>']
         return '\n'.join(result) + '\n'
 		
