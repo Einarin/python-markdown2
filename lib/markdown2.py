@@ -823,29 +823,56 @@ class Markdown(object):
         text = match.group(0).strip()
         #print 'db table: %r' % match.group(0)
         table = []
+        header = True
+        first = True
         for line in text.splitlines():
-        	line = line.strip()
-        	if re.match(r'^[-+:]$',line): #discard the heading separator
-        		continue
-        	table.append(re.split(r'(?<!\\)\|', line))
+            line = line.strip()
+            if re.match(r'^[-+\|]$',line):
+                if first:
+                    header = False
+                continue
+            table.append(re.split(r'(?<!\\)\|(?!\|)', line)[1:-1])
+            first = False
+        result = ['<table border=1 rules="all">', '<tbody>']
+        space_re = re.compile(r'^([ ]*).*?([ ]*)$')
         #print table
-        result = ['<table>', '<tbody>']
         for row in table:
             result.append('<tr>')
             emptyrow = True
             for cell in row:
-                #TODO: determine alignment from whitespace
+                colspan = 1
+                while cell[-1] == '|':
+                    colspan += 1
+                    cell = cell[:-1]
+                match = space_re.match(cell)
+                align = 'center'
+                if match:
+                    #print 'left "'+match.group(1)+'" right "'+match.group(2)+'"'
+                    if len(match.group(1)) < len(match.group(2)) and len(match.group(1)) < 2:
+                        align = 'left'
+                    if len(match.group(2)) < len(match.group(1)) and len(match.group(2)) < 2:
+                        align = 'right'
                 cell = cell.strip()
-                if len(cell) < 1 or re.match(r'[-+]', cell):
+                if re.match(r'[-+]', cell):
                     continue
-                result.append('<td>')
-                result.append(self._run_span_gamut(cell))
-                result.append('</td>')
+                if colspan > 1:
+                    colspan = 'colspan="%d"' % colspan
+                else:
+                    colspan = ''
+                tag = '<td '
+                endtag = '</td>'
+                if header:
+                    tag = '<th '
+                    endtag = '</th>'
+                result.append(tag+colspan+'style="text-align:'+align+'">')
+                result.append(self._run_span_gamut(cell)+endtag)
                 emptyrow = False
             if emptyrow:
                 result.pop()
             else:
                 result.append('</tr>')
+            if header:
+                header = False
         result += ['</tbody>', '</table>']
         return '\n'.join(result) + '\n'
 		
@@ -858,17 +885,10 @@ class Markdown(object):
         	return text
         less_than_tab = self.tab_width - 1
         db_table_re = re.compile(r'''
-        	(?:(?<=\n\n)|\A\n?)			# blank line before table
-        	^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n #first line
-        	#(^[-+:]*\n){0,1} #optional separating line
-        	(^([ ]{0,4})(\|([^|\n]\|)*)[ ]*\n)* # matches the rest of the lines in the table
-        	''' , re.M | re.X)
-        db_table_re = re.compile(r'''
             (?:(?<=\n\n)|\A\n?)
-            ^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n
-            (^[-+:]*\n){0,1}
-            (^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n)*
-            ''', re.M | re.X)
+            ((^[-+:]*\n){0,1}
+            ^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n){1,}
+            (^[-+:]*\n){0,1}''', re.M | re.X)
         return db_table_re.sub(self._db_table_sub, text)
 
     def _run_span_gamut(self, text):
