@@ -887,7 +887,7 @@ class Markdown(object):
         less_than_tab = self.tab_width - 1
         db_table_re = re.compile(r'''
             (?:(?<=\n\n)|\A\n?)
-            ((^[-+:]*\n){0,1}
+            ((^[-+:\|]*\n){0,1}
             ^[ ]{0,4}\|([^\|\n]*\|)*[ ]*\n){1,}
             (^[-+:]*\n){0,1}''', re.M | re.X)
         return db_table_re.sub(self._db_table_sub, text)
